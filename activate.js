@@ -3,17 +3,6 @@ const { getFunctions, httpsCallable } = require('firebase/functions');
 
 
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDAACQBBPIeYCkgwqSM7GQQGnkhUPTk_dc",
-  authDomain: "url-shortener-aud.firebaseapp.com",
-  projectId: "url-shortener-aud",
-  storageBucket: "url-shortener-aud.appspot.com",
-  messagingSenderId: "846887909877",
-  appId: "1:846887909877:web:b8e842df95800029f988bc",
-  measurementId: "G-QWNLS98DQP"
-};
-
-
 const app = initializeApp(firebaseConfig);
 const functions = getFunctions(app, 'us-central1');
 
