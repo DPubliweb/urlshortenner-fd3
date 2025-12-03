@@ -34,7 +34,7 @@ const serviceAccount = {
 };
 
 const shortUrlDomains = [
-  'https://clic.bz'
+  'https://aide.bz'
 ];
 
 if (!serviceAccount.private_key) {
