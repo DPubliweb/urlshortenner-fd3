@@ -130,56 +130,70 @@ app.post('/unblock-ip', async (req, res) => {
   }
 });
 
-// ----------------------------- UPLOAD FILE -----------------------------
+// ----------------------------- UPLOAD FILE (avec logs détaillés) -----------------------------
 app.post('/upload-file', async (req, res) => {
+  console.log('📩 Requête reçue sur /upload-file');
   const wb = new xl.Workbook();
   const ws = wb.addWorksheet('FileSheet');
   const getRandomDomain = () => shortUrlDomains[Math.floor(Math.random() * shortUrlDomains.length)];
 
   try {
     if (!req.files || !req.files.xlsxFile) {
+      console.error('❌ Aucun fichier reçu');
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
     const xlsxFile = req.files.xlsxFile;
     const uploadPath = path.join(uploadDir, xlsxFile.name);
+    console.log(`📂 Sauvegarde du fichier dans ${uploadPath}`);
     await xlsxFile.mv(uploadPath);
 
     const rows = await readXlsxFile(uploadPath);
-    if (rows.length === 0) return res.status(400).json({ error: 'Empty file' });
+    console.log(`📄 ${rows.length} lignes lues dans ${xlsxFile.name}`);
+
+    if (rows.length === 0) {
+      console.error('⚠️ Fichier vide');
+      return res.status(400).json({ error: 'Empty file' });
+    }
 
     const cols = ['nom', 'prenom', 'mail', 'phone', 'lien', 'civilite', 'code', 'code_postal', 'utm', 'ville'];
     rows.shift();
-
     const formattedRows = [];
 
     for (const row of rows) {
-      const url = row[4];
-      const campaignId = row[8];
-      const phone = row[3];
-      const newRow = [...row];
+      try {
+        const url = row[4];
+        const campaignId = row[8];
+        const phone = row[3];
+        const newRow = [...row];
 
-      if (url) {
-        const id = nanoid();
-        const selectedDomain = getRandomDomain();
-        await db.collection('urls').doc(id).set({
-          id,
-          url,
-          short: `${selectedDomain}/${id}`,
-          phone,
-          campaign: campaignId,
-          clicks: 0,
-          mobileClicks: 0,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        newRow[4] = `${selectedDomain}/${id}`;
+        if (url) {
+          const id = nanoid();
+          const selectedDomain = getRandomDomain();
+
+          await db.collection('urls').doc(id).set({
+            id,
+            url,
+            short: `${selectedDomain}/${id}`,
+            phone,
+            campaign: campaignId || 'unknown',
+            clicks: 0,
+            mobileClicks: 0,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          console.log(`✅ Lien ajouté à Firestore : ${selectedDomain}/${id}`);
+          newRow[4] = `${selectedDomain}/${id}`;
+        }
+
+        const obj = cols.reduce((acc, col, i) => {
+          acc[col] = newRow[i] || '';
+          return acc;
+        }, {});
+        formattedRows.push(obj);
+      } catch (e) {
+        console.error('🔥 Erreur dans la boucle Firestore :', e.message);
       }
-
-      const obj = cols.reduce((acc, col, i) => {
-        acc[col] = newRow[i] || '';
-        return acc;
-      }, {});
-      formattedRows.push(obj);
     }
 
     cols.forEach((h, i) => ws.cell(1, i + 1).string(h));
@@ -190,18 +204,18 @@ app.post('/upload-file', async (req, res) => {
     const parsedPath = path.join(uploadDir, `parsed_${xlsxFile.name}`);
     wb.write(parsedPath, (err) => {
       if (err) {
-        console.error('❌ Excel write error:', err.message);
-        return res.status(500).send(err);
+        console.error('❌ Erreur écriture Excel :', err.message);
+        return res.status(500).send(err.message);
       }
-      console.log(`✅ Parsed file created: ${parsedPath}`);
+      console.log(`✅ Fichier généré : ${parsedPath}`);
       res.download(parsedPath, `parsed_${xlsxFile.name}`);
     });
-
   } catch (err) {
-    console.error('Upload error:', err.message);
-    res.status(500).send('Internal Server Error');
+    console.error('💥 Erreur globale upload-file :', err);
+    res.status(500).send(err.message || 'Internal Server Error');
   }
 });
+
 
 // ----------------------------- CAMPAIGN STATS -----------------------------
 app.get('/campaign/:campaignId/stats', async (req, res) => {
